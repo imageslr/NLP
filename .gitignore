@@ -1,7 +1,6 @@
 
-mt-seq2seq/*/checkpoints/
 *.DS_Store
-*.html
-*.ipynb
-*.png
 *.swp
+*.html
+*.png
+*.ipynb
