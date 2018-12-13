@@ -14,7 +14,6 @@ from disc.hier_rnn_train import HierRNNTrain
 from utils.utils import just_message as just
 import utils.data_utils as data_utils
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 # Adversarial Learning for Neural Dialogue Generation
 def al_train():
@@ -23,7 +22,11 @@ def al_train():
     disc_config = conf.disc_config
     adver_config = conf.adver_config
 
-    with tf.Session() as sess:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    config = tf.ConfigProto()  
+    config.gpu_options.allow_growth=True
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    with tf.Session(config=config) as sess:
         # ① 获取数据集
         vocab, rev_vocab, dev_set, train_set = get_dataset(gen_config)
         for set in train_set:

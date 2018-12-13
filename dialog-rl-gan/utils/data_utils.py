@@ -44,64 +44,6 @@ UNK_ID = 3
 _WORD_SPLIT = re.compile(r"([.,!?\"':;)(])")
 _DIGIT_RE = re.compile(r"\d")
 
-# URLs for WMT disc_data.
-_WMT_ENFR_TRAIN_URL = "http://www.statmt.org/wmt10/training-giga-fren.tar"
-_WMT_ENFR_DEV_URL = "http://www.statmt.org/wmt15/dev-v2.tgz"
-
-
-def maybe_download(directory, filename, url):
-  """Download filename from url unless it's already in directory."""
-  if not os.path.exists(directory):
-    print("Creating directory %s" % directory)
-    os.mkdir(directory)
-  filepath = os.path.join(directory, filename)
-  if not os.path.exists(filepath):
-    print("Downloading %s to %s" % (url, filepath))
-    filepath, _ = urllib.request.urlretrieve(url, filepath)
-    statinfo = os.stat(filepath)
-    print("Succesfully downloaded", filename, statinfo.st_size, "bytes")
-  return filepath
-
-
-def gunzip_file(gz_path, new_path):
-  """Unzips from gz_path into new_path."""
-  print("Unpacking %s to %s" % (gz_path, new_path))
-  with gzip.open(gz_path, "rb") as gz_file:
-    with open(new_path, "wb") as new_file:
-      for line in gz_file:
-        new_file.write(line)
-
-
-def get_wmt_enfr_train_set(directory):
-  """Download the WMT en-fr training corpus to directory unless it's there."""
-  train_path = os.path.join(directory, "giga-fren.release2.fixed")
-  if not (gfile.Exists(train_path +".fr") and gfile.Exists(train_path +".en")):
-    corpus_file = maybe_download(directory, "training-giga-fren.tar",
-                                 _WMT_ENFR_TRAIN_URL)
-    print("Extracting tar file %s" % corpus_file)
-    with tarfile.open(corpus_file, "r") as corpus_tar:
-      corpus_tar.extractall(directory)
-    gunzip_file(train_path + ".fr.gz", train_path + ".fr")
-    gunzip_file(train_path + ".en.gz", train_path + ".en")
-  return train_path
-
-
-def get_wmt_enfr_dev_set(directory):
-  """Download the WMT en-fr training corpus to directory unless it's there."""
-  dev_name = "newstest2013"
-  dev_path = os.path.join(directory, dev_name)
-  if not (gfile.Exists(dev_path + ".fr") and gfile.Exists(dev_path + ".en")):
-    dev_file = maybe_download(directory, "dev-v2.tgz", _WMT_ENFR_DEV_URL)
-    print("Extracting tgz file %s" % dev_file)
-    with tarfile.open(dev_file, "r:gz") as dev_tar:
-      fr_dev_file = dev_tar.getmember("dev/" + dev_name + ".fr")
-      en_dev_file = dev_tar.getmember("dev/" + dev_name + ".en")
-      fr_dev_file.name = dev_name + ".fr"  # Extract without "dev/" prefix.
-      en_dev_file.name = dev_name + ".en"
-      dev_tar.extract(fr_dev_file, directory)
-      dev_tar.extract(en_dev_file, directory)
-  return dev_path
-
 
 def basic_tokenizer(sentence):
   """Very basic tokenizer: split the sentence into a list of tokens."""
@@ -235,8 +177,6 @@ def data_to_token_ids(data_path, target_path, vocabulary,
   """
   if not gfile.Exists(target_path):
     print("Tokenizing disc_data in %s" % data_path)
-    #print("target path: ", target_path)
-    #vocab, _ = initialize_vocabulary(vocabulary_path)
     with gfile.GFile(data_path, mode="r") as data_file:
       with gfile.GFile(target_path, mode="w") as tokens_file:
         counter = 0
@@ -265,29 +205,9 @@ def prepare_chitchat_data(data_dir, vocabulary, vocabulary_size, tokenizer=None)
       (2) path to the token-ids for French training disc_data-set,
       (3) path to the token-ids for English development disc_data-set,
       (4) path to the token-ids for French development disc_data-set,
-      (5) path to the English vocabulary file,
-      (6) path to the French vocabulary file.
   """
-  # Get wmt disc_data to the specified directory.
-  #train_path = get_wmt_enfr_train_set(data_dir)
   train_path = os.path.join(data_dir, "chitchat.train")
-  #dev_path = get_wmt_enfr_dev_set(data_dir)
   dev_path = os.path.join(data_dir, "chitchat.dev")
-  # fixed_path = os.path.join(data_dir, "chitchat.fixed")
-  # weibo_path = os.path.join(data_dir, "chitchat.weibo")
-  # qa_path = os.path.join(data_dir, "chitchat.qa")
-
-  # voc_file_path = [train_path+".answer", fixed_path+".answer", weibo_path+".answer", qa_path+".answer",
-  #                    train_path+".query", fixed_path+".query", weibo_path+".query", qa_path+".query"]
-  #voc_query_path = [train_path+".query", fixed_path+".query", weibo_path+".query", qa_path+".query"]
-  # Create vocabularies of the appropriate sizes.
-  #vocab_path = os.path.join(data_dir, "vocab%d.all" % vocabulary_size)
-  #query_vocab_path = os.path.join(data_dir, "vocab%d.query" % en_vocabulary_size)
-
-  #create_vocabulary(vocab_path, voc_file_path, vocabulary_size)
-
-
-  #create_vocabulary(query_vocab_path, voc_query_path, en_vocabulary_size)
 
   # Create token ids for the training disc_data.
   answer_train_ids_path = train_path + (".ids%d.answer" % vocabulary_size)
@@ -323,10 +243,7 @@ def hier_prepare_disc_data(data_dir, vocabulary, vocabulary_size, tokenizer=None
       (5) path to the English vocabulary file,
       (6) path to the French vocabulary file.
   """
-  # Get wmt disc_data to the specified directory.
-  #train_path = get_wmt_enfr_train_set(data_dir)
   train_path = os.path.join(data_dir, "train")
-  #dev_path = get_wmt_enfr_dev_set(data_dir)
   dev_path = os.path.join(data_dir, "dev")
 
   # Create token ids for the training disc_data.
@@ -353,7 +270,6 @@ def hier_prepare_disc_data(data_dir, vocabulary, vocabulary_size, tokenizer=None
 def prepare_disc_data(data_dir, vocabulary, vocabulary_size, tokenizer=None):
 
   train_path = os.path.join(data_dir, "train")
-  #dev_path = get_wmt_enfr_dev_set(data_dir)
   dev_path = os.path.join(data_dir, "dev")
 
   # Create token ids for the training data.
@@ -374,9 +290,6 @@ def prepare_disc_data(data_dir, vocabulary, vocabulary_size, tokenizer=None):
 
 
 def prepare_defined_data(data_path, vocabulary, vocabulary_size, tokenizer=None):
-  #vocab_path = os.path.join(data_dir, "vocab%d.all" %vocabulary_size)
-  #query_vocab_path = os.path.join(data_dir, "vocab%d.query" %query_vocabulary_size)
-
   answer_fixed_ids_path = data_path + (".ids%d.answer" % vocabulary_size)
   query_fixed_ids_path = data_path + (".ids%d.query" % vocabulary_size)
 
