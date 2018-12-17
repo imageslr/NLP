@@ -1,3 +1,3 @@
 # Lessons
-  seq2seq model：encoder为bidirectional LSTM，decoder使用attention mechanism
+  seq2seq_BidRNN_Atten：encoder为bidirectional LSTM，decoder使用attention mechanism
   
