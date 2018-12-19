@@ -2,8 +2,9 @@
 
 ## 介绍
 ### 仓库作用
-1. NLP任务入门代码学习
-2. NLP论文复现
+1. NLP GROUP 入门代码实践
+2. NLP GROUP 代码积累
+2. NLP GROUP 论文复现
 
 ### 环境配置
 1. 基于：Tensorflow1.9.0 Pyton3.6
