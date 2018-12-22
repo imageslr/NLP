@@ -36,7 +36,7 @@ def model_inputs():
     targets = tf.placeholder(tf.int32, [None, None], name="targets")
     learning_rate = tf.placeholder(tf.float32, name="learning_rate")
 
-    source_sequence_len = tf.placeholder(tf.int32, (None,), name="source_sequence_len")
+    source_sequence_len = tf.placeholder(tf.int32, (None,), name="source_sequence_len") # TODO 这里和[None]是不是一模一样
     target_sequence_len = tf.placeholder(tf.int32, (None,), name="target_sequence_len")
     max_target_sequence_len = tf.placeholder(tf.int32, (None,), name="max_target_sequence_len")
 
@@ -67,6 +67,8 @@ def encoder_layer(rnn_inputs, rnn_size, rnn_num_layers,
             [encoder_bw_cell for _ in range(rnn_num_layers)])
 
         # The following four tensor shape：B*T*D，B*T*D，B*D，B*D
+        # outputs: (batch_size, time_steps, rnn_size)
+        # state: [rnn_num_layers, 2]，即rnn_num_layers个LSTMStateTuple: (c, h)。c、h形状: (batch_size, rnn_size)
         (encoder_fw_all_outputs, encoder_bw_all_outputs), (encoder_fw_final_state, encoder_bw_final_state) = \
             tf.nn.bidirectional_dynamic_rnn(cell_fw=encoder_fw_multi_cell,
                                             cell_bw=encoder_bw_multi_cell,
@@ -74,11 +76,12 @@ def encoder_layer(rnn_inputs, rnn_size, rnn_num_layers,
                                             sequence_length=source_sequence_len,
                                             dtype=tf.float32, time_major=False)
 
+        # encoder_outputs.shape: (batch_size, time_steps, rnn_size*2=256)
         encoder_outputs = tf.concat((encoder_fw_all_outputs, encoder_bw_all_outputs), 2)
         encoder_final_state_c = tf.concat(
-            (encoder_fw_final_state[0].c, encoder_bw_final_state[0].c), 1)
+            (encoder_fw_final_state[-1].c, encoder_bw_final_state[0].c), 1) # (batch_size, rnn_size*2)
         encoder_final_state_h = tf.concat(
-            (encoder_fw_final_state[0].h, encoder_bw_final_state[0].h), 1)
+            (encoder_fw_final_state[-1].h, encoder_bw_final_state[0].h), 1) # (batch_size, rnn_size*2)
         encoder_states = tf.nn.rnn_cell.LSTMStateTuple(
             c=encoder_final_state_c,
             h=encoder_final_state_h)
@@ -95,6 +98,7 @@ def decoder_layer_inputs(target_data, target_vocab_to_int, batch_size):
     @param batch_size: batch size
     """
     # 去掉batch中每个序列句子的最后一个单词
+    # tf.strided_slice(input, start, end, 切片长度). end是开区间
     ending = tf.strided_slice(target_data, [0, 0], [batch_size, -1], [1, 1])
     # 在batch中每个序列句子的前面添加”<GO>"
     decoder_inputs = tf.concat([tf.fill([batch_size, 1], target_vocab_to_int["<GO>"]),
@@ -112,7 +116,9 @@ def decoder_layer_train(encoder_outputs, encoder_states, decoder_attn_multi_cell
     @param encoder_states: Encoder端编码得到的Context Vector
     @param decoder_attn_multi_cell: Decoder端
     @param decoder_embed: Decoder端词向量嵌入后的输入
+    @type decoder_embed: list [target_vocab_size, embedding_size]
     @param target_sequence_len: 法语文本的长度
+    @type target_sequence_len: list
     @param max_target_sequence_len: 法语文本的最大长度
     @param output_layer: 输出层
     """
@@ -121,7 +127,8 @@ def decoder_layer_train(encoder_outputs, encoder_states, decoder_attn_multi_cell
     training_helper = tf.contrib.seq2seq.TrainingHelper(inputs=decoder_embed,
                                                        sequence_length=target_sequence_len,
                                                        time_major=False)
-    # 生成decoder端initial hidden state 
+    # 生成decoder端initial hidden state
+    # TODO 为什么要clone？
     decoder_initial_state = decoder_attn_multi_cell.zero_state(batch_size, 
                                                                tf.float32).clone(cell_state=encoder_states)
 
@@ -129,7 +136,7 @@ def decoder_layer_train(encoder_outputs, encoder_states, decoder_attn_multi_cell
                                                       training_helper,
                                                       decoder_initial_state,
                                                       output_layer)
-    training_decoder_outputs, training_decoder_final_state, _, _ = tf.contrib.seq2seq.dynamic_decode(training_decoder,
+    training_decoder_outputs, training_decoder_final_state, _ = tf.contrib.seq2seq.dynamic_decode(training_decoder,
                                                                   impute_finished=True,
                                                                   maximum_iterations=max_target_sequence_len)
 
@@ -144,6 +151,7 @@ def decoder_layer_infer(encoder_outputs, encoder_states, decoder_attn_multi_cell
     @param encoder_states: Encoder端编码得到的Context Vector
     @param decoder_attn_multi_cell: Decoder端
     @param decoder_embed: Decoder端词向量嵌入后的输入
+    @type decoder_embed: list [target_vocab_size, embedding_size]
     @param start_id: 句子起始单词的token id， 即"<GO>"的编码
     @param end_id: 句子结束的token id，即"<EOS>"的编码
     @param max_target_sequence_len: 法语文本的最大长度
@@ -151,12 +159,14 @@ def decoder_layer_infer(encoder_outputs, encoder_states, decoder_attn_multi_cell
     @batch_size: batch size
     """
 
+    # batch_size 个 start_id 组成的数组
     start_tokens = tf.tile(tf.constant([start_id], dtype=tf.int32), [batch_size], name="start_tokens")
 
     inference_helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(decoder_embed,
                                                                 start_tokens,
                                                                 end_id)
-    # 生成decoder端initial hidden state 
+    # 生成decoder端initial hidden state
+    # TODO 为什么要 clone
     decoder_initial_state = decoder_attn_multi_cell.zero_state(batch_size, 
                                                                tf.float32).clone(cell_state=encoder_states)
 
@@ -165,7 +175,7 @@ def decoder_layer_infer(encoder_outputs, encoder_states, decoder_attn_multi_cell
                                                        decoder_initial_state,
                                                        output_layer)
 
-    inference_decoder_outputs, inference_decoder_state, _, _ = tf.contrib.seq2seq.dynamic_decode(inference_decoder,
+    inference_decoder_outputs, inference_decoder_state, _ = tf.contrib.seq2seq.dynamic_decode(inference_decoder,
                                                                       impute_finished=True,
                                                                       maximum_iterations=max_target_sequence_len)
 
@@ -208,7 +218,7 @@ def decoder_layer(encoder_outputs, encoder_states, decoder_inputs, target_sequen
         decoder_cell, 
         attention_mechanism,
         attention_layer_size=rnn_size*2,
-        alignment_history=True)
+        alignment_history=True) # TODO 什么是 alignment_history ？
 
     # output_layer logits
     output_layer = tf.layers.Dense(target_vocab_size)
