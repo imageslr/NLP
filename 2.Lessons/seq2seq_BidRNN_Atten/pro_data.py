@@ -11,7 +11,7 @@ with open('data/small_vocab_en', 'r', encoding='utf-8') as f:
 with open('data/small_vocab_fr', 'r', encoding='utf-8') as f:
     target_text = f.read()
 
-# 下面是对原始文本按照空格分开，这样就可以查看原始文本到底包含了多少个单词
+# 下面是对原始文本按照空格分开，这样就可以查看原始文本到底包含了多少个单独的单词
 view_sentence_range = (0, 10)
 print('Dataset Stats')
 print('Roughly the number of unique words: {}'.format(len({word : None for word in source_text.split()})))
